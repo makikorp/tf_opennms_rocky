@@ -52,5 +52,5 @@ resource "null_resource" "opennms_install" {
 }
 
 output "ec2_access" {
-  value = {for i in aws_instance.master[*] : i.tags.Name => "${i.public_ip}:8980"}
+  value = {for i in aws_instance.master[*] : i.tags.Name => "${i.public_ip}:8980/opennms"}
 }
