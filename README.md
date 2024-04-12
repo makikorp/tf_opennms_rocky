@@ -9,3 +9,5 @@ The Ansible playbook/opennms is called and deploys OpenNMS Horizon.
 The output includes the public ip address of the EC2 server with the port set for opennms.
 
 To access the OpenNMS UI, please use the output string
+
+when destroying the instance, the ip address will have to be removed from the aws_hosts file
