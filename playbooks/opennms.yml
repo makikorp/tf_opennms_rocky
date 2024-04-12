@@ -1,0 +1,146 @@
+---
+- name: Install OpenNMS
+  hosts: main
+  remote_user: rocky
+  become: true
+  vars:
+    - ansible_ssh_common_args: "-o StrictHostKeyChecking=accept-new"
+ 
+  tasks: 
+
+    - name: yum upgade all
+      ansible.builtin.yum:
+        name: '*'
+        state: latest
+        
+    - name: install required packages
+      ansible.builtin.yum:
+        name:
+          - java
+          - postgresql
+          - postgresql-libs
+          - yum-utils
+          - epel-release
+          - firewalld
+
+        state: latest
+        update_cache: true
+      
+    - name: download yum key
+      ansible.builtin.rpm_key:
+        key: https://yum.opennms.org/OPENNMS-GPG-KEY
+        state: present
+
+    # - name: opennms 
+    #   ansible.builtin.yum_repository:
+    #     baseurl: https://yum.opennms.org/repofiles/opennms-repo-stable-rhel7.noarch.rpm
+    #     name: opennms
+    #     description: add opennms to yum repo
+    #     state: present
+
+    - name: start firewalld
+      ansible.builtin.systemd:
+        name: firewalld
+        enabled: yes
+        state: started
+
+    - name: open ports
+      ansible.posix.firewalld:
+        port: 8980/tcp
+        zone: public
+        permanent: true
+        state: enabled
+    - name: open ports
+      ansible.posix.firewalld:
+        port: 5432/tcp
+        permanent: true
+        state: enabled   
+
+    - name: reload firewalld
+      ansible.builtin.shell:
+        cmd: sudo firewall-cmd --reload
+
+    - name: add PostgreSQL 12 package repo
+      ansible.builtin.shell:
+        cmd: sudo dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+        #cmd: sudo yum -y install https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+
+    - name: Disable the built-in PostgreSQL module
+      ansible.builtin.shell:
+        cmd: sudo dnf -qy module disable postgresql
+
+    - name: install PostgreSQL 12 client and server
+      ansible.builtin.dnf:
+        name: postgresql12-server
+        #enabled: yes
+        state: present
+    - name: install PostgreSQL 12 client
+      ansible.builtin.dnf:
+        name: postgresql12
+        #enabled: yes
+        state: present
+
+    - name: initialize postgre
+      ansible.builtin.shell:
+        cmd: sudo /usr/pgsql-12/bin/postgresql-12-setup initdb
+
+    - name: enable postgre
+      ansible.builtin.shell:
+        cmd: sudo systemctl enable postgresql-12
+
+    - name: start postgre
+      ansible.builtin.shell:
+        cmd: sudo systemctl start postgresql-12
+
+
+    - name: alter postgres user pw
+      ansible.builtin.shell:
+        cmd: sudo -i -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'password123';"
+
+    - name: Create OpenNMS database user
+      ansible.builtin.shell:
+        cmd: sudo -i -u postgres psql -c "CREATE USER opennms WITH PASSWORD 'password123';"
+
+    - name: create OpenNMS database
+      ansible.builtin.shell:
+        cmd: sudo -i -u postgres psql -c "CREATE DATABASE opennms;"
+
+    - name: rm pg_hba.conf
+      ansible.builtin.shell:
+        cmd: sudo rm /var/lib/pgsql/12/data/pg_hba.conf
+
+    - name: cp pg_hba.conf  - This is set to trust and should be changed for production
+      copy:
+        src: /Users/ericmaki/code/tf_opennms_rocky/pg_hba.conf
+        dest: /var/lib/pgsql/12/data/
+        owner: rocky
+        mode: 0755   
+
+    - name: reload postgreSQL
+      ansible.builtin.shell:
+        cmd: sudo systemctl reload postgresql-12
+
+
+    - name: add opennms to yum repo
+      ansible.builtin.shell:
+        cmd: sudo yum -y install https://yum.opennms.org/repofiles/opennms-repo-stable-rhel7.noarch.rpm
+
+    - name: Update yum cache and install opennms
+      ansible.builtin.yum: 
+        name: opennms
+        update_cache: no
+   
+    - name: detect and assign java environment
+      ansible.builtin.shell:
+        cmd: sudo /opt/opennms/bin/runjava -s
+
+    - name: initialize postgre db
+      ansible.builtin.shell:
+        cmd: sudo /opt/opennms/bin/install -dis
+
+
+    - name: Ensure OpenNMS is started and enabled
+      ansible.builtin.systemd:
+        name: opennms
+        enabled: yes
+        state: started
