@@ -1,2 +1,2 @@
-key_name  = "awsTerraTest"
-public_key_path = "/Users/ericmaki/.ssh/awsTerraTest.pub"
+key_name  = "<key>"
+public_key_path = "/Users/ericmaki/.ssh/<key>.pub"
